@@ -1,0 +1,170 @@
+import React, { useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Search, Eye } from "lucide-react";
+import { format } from "date-fns";
+import { ar } from "date-fns/locale";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import OrderDetails from "../components/orders/OrderDetails";
+
+const statusColors = {
+  pending: "bg-yellow-100 text-yellow-800",
+  confirmed: "bg-blue-100 text-blue-800",
+  processing: "bg-purple-100 text-purple-800",
+  shipped: "bg-indigo-100 text-indigo-800",
+  delivered: "bg-green-100 text-green-800",
+  cancelled: "bg-red-100 text-red-800"
+};
+
+const statusLabels = {
+  pending: "قيد الانتظار",
+  confirmed: "مؤكد",
+  processing: "قيد المعالجة",
+  shipped: "تم الشحن",
+  delivered: "تم التوصيل",
+  cancelled: "ملغي"
+};
+
+export default function Orders() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  
+  const queryClient = useQueryClient();
+
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ['orders'],
+    queryFn: () => base44.entities.Order.list('-created_date'),
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, status }) => base44.entities.Order.update(id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         order.order_number?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === "all" || order.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  return (
+    <div className="p-6 space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">إدارة الطلبات</h1>
+        <p className="text-gray-500 mt-1">متابعة ومعالجة طلبات العملاء</p>
+      </div>
+
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="flex-1 relative">
+              <Search className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="البحث عن طلب..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pr-10"
+              />
+            </div>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="جميع الحالات" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">جميع الحالات</SelectItem>
+                {Object.entries(statusLabels).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>رقم الطلب</TableHead>
+                  <TableHead>العميل</TableHead>
+                  <TableHead>التاريخ</TableHead>
+                  <TableHead>المجموع</TableHead>
+                  <TableHead>الحالة</TableHead>
+                  <TableHead>الإجراءات</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.map((order) => (
+                  <TableRow key={order.id} className="hover:bg-gray-50">
+                    <TableCell className="font-medium">
+                      {order.order_number || `#${order.id.substring(0, 8)}`}
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{order.customer_name}</p>
+                        <p className="text-sm text-gray-500">{order.customer_phone}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {format(new Date(order.created_date), "dd MMM yyyy", { locale: ar })}
+                    </TableCell>
+                    <TableCell className="font-semibold">
+                      {order.total.toLocaleString('ar-SY')} ل.س
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={statusColors[order.status]}>
+                        {statusLabels[order.status]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedOrder(order)}
+                      >
+                        <Eye className="w-4 h-4 ml-2" />
+                        عرض
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {selectedOrder && (
+        <OrderDetails
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+          onUpdateStatus={(status) => {
+            updateStatusMutation.mutate({ id: selectedOrder.id, status });
+            setSelectedOrder(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
