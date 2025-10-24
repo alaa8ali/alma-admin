@@ -1,0 +1,231 @@
+import React, { useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { X, Upload, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+export default function ProductForm({ product, categories, onClose }) {
+  const [formData, setFormData] = useState(product || {
+    name: "",
+    name_en: "",
+    description: "",
+    category_id: "",
+    sku: "",
+    price: 0,
+    cost: 0,
+    stock_quantity: 0,
+    min_stock: 5,
+    main_image: "",
+    images: [],
+    is_active: true,
+    is_featured: false,
+    weight: 0,
+    dimensions: "",
+    tags: []
+  });
+
+  const [uploading, setUploading] = useState(false);
+  const queryClient = useQueryClient();
+
+  const saveMutation = useMutation({
+    mutationFn: (data) => {
+      if (product) {
+        return base44.entities.Product.update(product.id, data);
+      }
+      return base44.entities.Product.create(data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      onClose();
+    },
+  });
+
+  const handleImageUpload = async (e, isMain = false) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      if (isMain) {
+        setFormData(prev => ({ ...prev, main_image: file_url }));
+      } else {
+        setFormData(prev => ({ 
+          ...prev, 
+          images: [...(prev.images || []), file_url] 
+        }));
+      }
+    } catch (error) {
+      console.error("Error uploading image:", error);
+    }
+    setUploading(false);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    saveMutation.mutate(formData);
+  };
+
+  return (
+    <Card className="mb-6">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>{product ? "تعديل منتج" : "إضافة منتج جديد"}</CardTitle>
+        <Button variant="ghost" size="icon" onClick={onClose}>
+          <X className="w-4 h-4" />
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label>اسم المنتج *</Label>
+              <Input
+                value={formData.name}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>اسم المنتج بالإنجليزية</Label>
+              <Input
+                value={formData.name_en}
+                onChange={(e) => setFormData({...formData, name_en: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>الوصف</Label>
+            <Textarea
+              value={formData.description}
+              onChange={(e) => setFormData({...formData, description: e.target.value})}
+              rows={3}
+            />
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label>الفئة *</Label>
+              <Select value={formData.category_id} onValueChange={(value) => setFormData({...formData, category_id: value})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="اختر الفئة" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>كود المنتج (SKU)</Label>
+              <Input
+                value={formData.sku}
+                onChange={(e) => setFormData({...formData, sku: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label>السعر (ل.س) *</Label>
+              <Input
+                type="number"
+                value={formData.price}
+                onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value)})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>التكلفة (ل.س)</Label>
+              <Input
+                type="number"
+                value={formData.cost}
+                onChange={(e) => setFormData({...formData, cost: parseFloat(e.target.value)})}
+              />
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label>الكمية المتوفرة</Label>
+              <Input
+                type="number"
+                value={formData.stock_quantity}
+                onChange={(e) => setFormData({...formData, stock_quantity: parseInt(e.target.value)})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>الحد الأدنى للمخزون</Label>
+              <Input
+                type="number"
+                value={formData.min_stock}
+                onChange={(e) => setFormData({...formData, min_stock: parseInt(e.target.value)})}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <Label>الصورة الرئيسية</Label>
+            <div className="flex items-center gap-4">
+              {formData.main_image && (
+                <img src={formData.main_image} alt="Preview" className="w-20 h-20 object-cover rounded" />
+              )}
+              <label className="cursor-pointer">
+                <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  <span>رفع صورة</span>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleImageUpload(e, true)}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <Label>منتج نشط</Label>
+            <Switch
+              checked={formData.is_active}
+              onCheckedChange={(checked) => setFormData({...formData, is_active: checked})}
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <Label>منتج مميز</Label>
+            <Switch
+              checked={formData.is_featured}
+              onCheckedChange={(checked) => setFormData({...formData, is_featured: checked})}
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+              إلغاء
+            </Button>
+            <Button type="submit" disabled={saveMutation.isPending} className="flex-1 bg-blue-600 hover:bg-blue-700">
+              {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
+              {product ? "تحديث" : "إضافة"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
