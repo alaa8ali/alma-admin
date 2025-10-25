@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>لوحة التحكم - Alma</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="module" src="js/dashboard.js"></script>
+</head>
+<body>
+  <header>
+    <img src="images/logo.png" alt="Alma Logo" />
+    <h1>لوحة تحكم Alma</h1>
+    <button id="logout">تسجيل الخروج</button>
+  </header>
+
+  <section class="stats">
+    <h2>إحصائيات عامة</h2>
+    <div id="stats-content">جارِ التحميل...</div>
+  </section>
+
+  <section class="orders">
+    <h2>الطلبات الأخيرة</h2>
+    <table id="orders-table">
+      <thead>
+        <tr>
+          <th>رقم الطلب</th><th>العميل</th><th>المجموع</th><th>الحالة</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</body>
+</html>
